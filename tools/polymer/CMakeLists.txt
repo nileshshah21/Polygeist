@@ -23,39 +23,48 @@ set(CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH}" "${CMAKE_CURRENT_SOURCE_DIR}/cmake"
 # ----------------------------- Dependencies
 # Find whether the GMP package exists.
 find_package(GMP REQUIRED)
+# find_package(CPLEX REQUIRED)
+find_package(NTL REQUIRED)
+find_package(GLPK REQUIRED)
 
-if(POLYGEIST_POLYMER_ENABLE_PLUTO)
-  # build pluto, openscop, cloog
-  execute_process(
-    COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/build_polymer_deps.sh" "${POLYGEIST_PLUTO_DIR}"
-    COMMAND_ERROR_IS_FATAL ANY
-  )
-  # configure the cmake variables for pluto
-  include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/AddPluto.cmake")
-  include_directories("${PLUTO_INCLUDE_DIR}")
-  message(STATUS "Will build and use Polymer-bundled Pluto")
+# build pluto, openscop, cloog, bullseye
+execute_process(
+  COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/build_polymer_deps_with_bullseye.sh" "${POLYGEIST_PLUTO_DIR}" "${CPLEX_HOME_DIR}" "${BULLSEYE_LLVM_INSTALL_DIR}"
+  COMMAND_ERROR_IS_FATAL ANY
+)
 
-  include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/OpenScop.cmake")
-  include_directories("${OSL_INCLUDE_DIR}")
+message(STATUS "Polygeist Pluto directory: ${POLYGEIST_PLUTO_DIR}")
 
-  include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/CLooG.cmake")
-  include_directories("${CLOOG_INCLUDE_DIR}")
+# configure the cmake variables for pluto
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/AddPluto.cmake")
+include_directories("${PLUTO_INCLUDE_DIR}")
+message(STATUS "Will build and use Polymer-bundled Pluto")
 
-  set(POLYMER_AVAIL_TARGETS
-    PolymerTargetOpenScop
-  )
-elseif(POLYGEIST_POLYMER_ENABLE_ISL)
-  include_directories(${MLIR_MAIN_SRC_DIR}/../polly/lib/External/isl/include)
-  include_directories(${MLIR_MAIN_SRC_DIR}/../polly/include)
-  include_directories(${MLIR_MAIN_SRC_DIR}/../polly/lib/External/isl/include)
-  include_directories(${MLIR_MAIN_SRC_DIR}/../polly/lib/External/isl/include)
-  include_directories(${LLVM_BINARY_DIR}/tools/polly/lib/External/isl/include)
-  set(POLYMER_AVAIL_TARGETS
-    PolymerTargetISL
-  )
-else()
-  message(FATAL_ERROR "Need one of POLYGEIST_POLYMER_ENABLE_PLUTO or POLYGEIST_POLYMER_ENABLE_ISL")
-endif()
+
+# configure the cmake variables for bullseye
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/AddCPLEX.cmake")
+include_directories("${CPLEX_INCLUDE_DIR}")
+message(STATUS "Will build and use CPLEX")
+
+# configure the cmake variables for bullseye
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/AddBullseye.cmake")
+include_directories("${BULLSEYE_INCLUDE_DIR}")
+message(STATUS "Will build and use Polymer-bundled Bullseye")
+
+set(Boost_MIN_VERSION "1.60.0")
+
+# Find the Boost library, specifically looking for the program_options component
+find_package(Boost ${Boost_MIN_VERSION} REQUIRED COMPONENTS program_options)
+
+# Include Boost headers
+include_directories(${Boost_INCLUDE_DIRS})
+
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/OpenScop.cmake")
+include_directories("${OSL_INCLUDE_DIR}")
+
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/CLooG.cmake")
+include_directories("${CLOOG_INCLUDE_DIR}")
+
 
 # ------------------------------------------------- This project
 include_directories("${POLYMER_MAIN_INCLUDE_DIR}")
