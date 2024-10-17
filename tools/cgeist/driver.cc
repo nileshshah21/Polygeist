@@ -72,6 +72,12 @@
 #include "llvm/Transforms/IPO/Internalize.h"
 #include <fstream>
 
+#ifdef POLYGEIST_ENABLE_POLYMER
+#include "polymer/Transforms/ExtractScopStmt.h"
+#include "polymer/Transforms/PlutoTransform.h"
+#include "polymer/Transforms/Reg2Mem.h"
+#endif
+
 #include "polygeist/Dialect.h"
 #include "polygeist/Passes/Passes.h"
 
@@ -84,6 +90,10 @@ using namespace llvm;
 #define POLYGEIST_ENABLE_GPU (POLYGEIST_ENABLE_CUDA || POLYGEIST_ENABLE_ROCM)
 
 static cl::OptionCategory toolOptions("clang to mlir - tool options");
+
+static cl::opt<bool>
+    ClPolyhedralOpt("polyhedral-opt", cl::init(false),
+                    cl::desc("Use polymer to optimize affine regions"));
 
 static cl::opt<bool> CudaLower("cuda-lower", cl::init(false),
                                cl::desc("Add parallel loops around cuda"));
@@ -685,20 +695,8 @@ int main(int argc, char **argv) {
       if (ScalarReplacement)
         optPM.addPass(mlir::affine::createAffineScalarReplacementPass());
     }
-    if (mlir::failed(pm.run(module.get()))) {
-      module->dump();
-      return 4;
-    }
-    if (mlir::failed(mlir::verify(module.get()))) {
-      module->dump();
-      return 5;
-    }
 
-#define optPM optPM2
-#define pm pm2
     {
-      mlir::PassManager pm(&context);
-      enablePrinting(pm);
       mlir::OpPassManager &optPM = pm.nest<mlir::func::FuncOp>();
 
       if (DetectReduction)
@@ -735,15 +733,9 @@ int main(int argc, char **argv) {
         optPM2.addPass(mlir::polygeist::createPolygeistCanonicalizePass(
             canonicalizerConfig, {}, {}));
       }
-      if (mlir::failed(pm.run(module.get()))) {
-        module->dump();
-        return 6;
-      }
     }
 
     if (CudaLower || EmitROCM) {
-      mlir::PassManager pm(&context);
-      enablePrinting(pm);
       mlir::OpPassManager &optPM = pm.nest<mlir::func::FuncOp>();
       optPM.addPass(mlir::createLowerAffinePass());
       optPM.addPass(mlir::polygeist::createPolygeistCanonicalizePass(
@@ -807,16 +799,10 @@ int main(int argc, char **argv) {
         if (ScalarReplacement)
           noptPM2.addPass(mlir::affine::createAffineScalarReplacementPass());
       }
-      if (mlir::failed(pm.run(module.get()))) {
-        module->dump();
-        return 7;
-      }
     }
 
-    mlir::PassManager pm(&context);
-    enablePrinting(pm);
-    mlir::OpPassManager &optPM = pm.nest<mlir::func::FuncOp>();
     if (CudaLower) {
+      mlir::OpPassManager &optPM = pm.nest<mlir::func::FuncOp>();
       optPM.addPass(mlir::polygeist::createPolygeistCanonicalizePass(
           canonicalizerConfig, {}, {}));
       optPM.addPass(mlir::createCSEPass());
@@ -895,23 +881,24 @@ int main(int argc, char **argv) {
     }
     pm.addPass(mlir::createSymbolDCEPass());
 
+#ifdef POLYGEIST_ENABLE_POLYMER
+    if (ClPolyhedralOpt) {
+      pm.addPass(polygeist::createPolyhedralOptPass());
+      pm.addPass(mlir::polygeist::createPolygeistCanonicalizePass(
+          canonicalizerConfig, {}, {}));
+    }
+#endif
+
     if (EmitGPU || EmitLLVM || !EmitAssembly || EmitOpenMPIR ||
         EmitLLVMDialect) {
       pm.addPass(mlir::createLowerAffinePass());
       if (InnerSerialize)
         pm.addPass(polygeist::createInnerSerializationPass());
       addLICM(pm);
-
-      if (mlir::failed(pm.run(module.get()))) {
-        module->dump();
-        return 8;
-      }
     }
 
 #if POLYGEIST_ENABLE_GPU
     if (EmitGPU) {
-      mlir::PassManager pm(&context);
-      enablePrinting(pm);
       pm.addPass(mlir::createCSEPass());
       if (CudaLower)
         pm.addPass(polygeist::createConvertParallelToGPUPass1(
@@ -938,26 +925,18 @@ int main(int argc, char **argv) {
       pm.addPass(mlir::polygeist::createPolygeistCanonicalizePass(
           canonicalizerConfig, {}, {}));
 
-      if (mlir::failed(pm.run(module.get()))) {
-        module->dump();
-        return 12;
-      }
-    }
-#endif
-
-    {
-      mlir::PassManager pm(&context);
-      enablePrinting(pm);
       mlir::OpPassManager &gpuPM = pm.nest<gpu::GPUModuleOp>();
       gpuPM.addPass(polygeist::createFixGPUFuncPass());
       pm.addPass(mlir::polygeist::createPolygeistCanonicalizePass(
           canonicalizerConfig, {}, {}));
       pm.addPass(polygeist::createLowerAlternativesPass());
       pm.addPass(polygeist::createCollectKernelStatisticsPass());
-      if (mlir::failed(pm.run(module.get()))) {
-        module->dump();
-        return 12;
-      }
+    }
+#endif
+
+    if (mlir::failed(pm.run(module.get()))) {
+      module->dump();
+      return 12;
     }
 
     // Prune unused gpu module funcs
@@ -996,7 +975,7 @@ int main(int argc, char **argv) {
         pm2.addPass(mlir::polygeist::createPolygeistCanonicalizePass(
             canonicalizerConfig, {}, {}));
       }
-      pm.nest<mlir::func::FuncOp>().addPass(
+      pm2.nest<mlir::func::FuncOp>().addPass(
           polygeist::createPolygeistMem2RegPass());
       pm2.addPass(mlir::createCSEPass());
       pm2.addPass(mlir::polygeist::createPolygeistCanonicalizePass(
@@ -1109,13 +1088,6 @@ int main(int argc, char **argv) {
           module->dump();
           return 10;
         }
-      }
-
-    } else {
-
-      if (mlir::failed(pm.run(module.get()))) {
-        module->dump();
-        return 11;
       }
     }
     if (mlir::failed(mlir::verify(module.get()))) {

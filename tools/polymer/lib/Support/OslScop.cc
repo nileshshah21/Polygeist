@@ -28,7 +28,10 @@
 #include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include "isl/ctx.h"
 #include <vector>
+
+#include <isl/mat.h>
 
 using namespace polymer;
 using namespace mlir;
@@ -253,12 +256,16 @@ void OslScop::addScatteringRelation(
               cst.getNumSymbolVars(), eqs, inEqs);
 }
 
-void OslScop::addAccessRelation(int stmtId, bool isRead, mlir::Value memref,
-                                affine::AffineValueMap &vMap,
-                                affine::FlatAffineValueConstraints &domain) {
+LogicalResult
+OslScop::addAccessRelation(int stmtId, bool isRead, mlir::Value memref,
+                           affine::AffineValueMap &vMap,
+                           affine::FlatAffineValueConstraints &domain) {
   affine::FlatAffineValueConstraints cst;
   // Insert the address dims and put constraints in it.
-  createAccessRelationConstraints(vMap, cst, domain);
+  if (createAccessRelationConstraints(vMap, cst, domain).failed()) {
+    LLVM_DEBUG(llvm::dbgs() << "createAccessRelationConstraints failed\n");
+    return failure();
+  }
 
   // Create a new dim of memref and set its value to its corresponding ID.
   memRefIdMap.try_emplace(memref, memRefIdMap.size() + 1);
@@ -285,6 +292,7 @@ void OslScop::addAccessRelation(int stmtId, bool isRead, mlir::Value memref,
               cst.getNumConstraints(), cst.getNumCols() + 1, numOutputDims,
               numInputDims, cst.getNumLocalVars(), cst.getNumSymbolVars(), eqs,
               inEqs);
+  return success();
 }
 
 void OslScop::addGeneric(int target, llvm::StringRef tag,
@@ -583,7 +591,7 @@ void OslScop::createConstraintRows(affine::FlatAffineValueConstraints &cst,
   }
 }
 
-void OslScop::createAccessRelationConstraints(
+LogicalResult OslScop::createAccessRelationConstraints(
     mlir::affine::AffineValueMap &vMap,
     mlir::affine::FlatAffineValueConstraints &cst,
     mlir::affine::FlatAffineValueConstraints &domain) {
@@ -610,8 +618,7 @@ void OslScop::createAccessRelationConstraints(
 
   // The results of the affine value map, which are the access addresses, will
   // be placed to the leftmost of all columns.
-  auto ret = cst.composeMap(&vMap).succeeded();
-  assert(ret);
+  return cst.composeMap(&vMap);
 }
 
 OslScop::SymbolTable *OslScop::getSymbolTable() { return &symbolTable; }

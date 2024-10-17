@@ -4,6 +4,23 @@
 include "mlir/Pass/PassBase.td"
 include "mlir/Rewrite/PassUtil.td"
 
+def PolyhedralOpt : Pass<"polyhedral-opt"> {
+  let summary = "Optimize affine regions with pluto";
+  let constructor = "mlir::polygeist::createPolyhedralOptPass()";
+  let dependentDialects = [
+    "scf::SCFDialect",
+    "func::FuncDialect",
+    "arith::ArithDialect",
+    "memref::MemRefDialect",
+    "affine::AffineDialect",
+    // This vector dialect is needed because lower-affine needs it. We launch
+    // a pass manager to use lower-affine from this pass itself, and that
+    // causes the multi-threaded mlir context to try to load the vector dialect
+    // which is unsupported. Instead we preload it here.
+    "vector::VectorDialect",
+  ];
+}
+
 def AffineCFG : Pass<"affine-cfg"> {
   let summary = "Replace scf.if and similar with affine.if";
   let constructor = "mlir::polygeist::replaceAffineCFGPass()";
@@ -217,6 +234,7 @@ def LoopRestructure : Pass<"loop-restructure"> {
   let constructor = "mlir::polygeist::createLoopRestructurePass()";
   let dependentDialects = [
     "scf::SCFDialect",
+    "cf::ControlFlowDialect",
     "polygeist::PolygeistDialect",
   ];
 }

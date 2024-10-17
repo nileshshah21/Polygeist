@@ -6,8 +6,10 @@
 #ifndef POLYMER_SUPPORT_OSLSCOP_H
 #define POLYMER_SUPPORT_OSLSCOP_H
 
+#include "mlir/Dialect/Affine/Analysis/AffineStructures.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Support/LLVM.h"
+#include "polymer/Support/ScatteringUtils.h"
 
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SmallVector.h"
@@ -27,6 +29,7 @@ struct osl_generic;
 namespace mlir {
 namespace affine {
 class AffineValueMap;
+class AffineForOp;
 class FlatAffineValueConstraints;
 } // namespace affine
 struct LogicalResult;
@@ -93,9 +96,10 @@ public:
                              mlir::affine::FlatAffineValueConstraints &cst,
                              llvm::ArrayRef<mlir::Operation *> ops);
   /// Add the access relation.
-  void addAccessRelation(int stmtId, bool isRead, mlir::Value memref,
-                         mlir::affine::AffineValueMap &vMap,
-                         mlir::affine::FlatAffineValueConstraints &cst);
+  mlir::LogicalResult
+  addAccessRelation(int stmtId, bool isRead, mlir::Value memref,
+                    mlir::affine::AffineValueMap &vMap,
+                    mlir::affine::FlatAffineValueConstraints &cst);
 
   /// Add a new generic field to a statement. `target` gives the statement ID.
   /// `content` specifies the data field in the generic.
@@ -143,7 +147,7 @@ private:
                             bool isEq = true);
 
   /// Create access relation constraints.
-  void createAccessRelationConstraints(
+  mlir::LogicalResult createAccessRelationConstraints(
       mlir::affine::AffineValueMap &vMap,
       mlir::affine::FlatAffineValueConstraints &cst,
       mlir::affine::FlatAffineValueConstraints &domain);
@@ -154,6 +158,7 @@ private:
 
   /// The internal storage of the Scop.
   osl_scop *scop;
+
   /// The scattering tree maintained.
   std::unique_ptr<ScatTreeNode> scatTreeRoot;
   /// Number of memrefs recorded.

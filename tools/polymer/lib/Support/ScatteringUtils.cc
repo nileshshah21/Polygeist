@@ -9,9 +9,13 @@
 #include <memory>
 
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/Operation.h"
+#include "mlir/IR/SymbolTable.h"
 #include "mlir/IR/Value.h"
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/Support/ErrorHandling.h"
+#include "llvm/Support/raw_ostream.h"
 
 using namespace polymer;
 using namespace mlir;
@@ -101,10 +105,9 @@ void insertStatement(ScatTreeNodeImpl *root, ArrayRef<Operation *> enclosingOps,
   scats.push_back(curr->children.size() - 1);
 }
 
-ScatTreeNode::ScatTreeNode()
-    : impl{std::move(std::make_unique<ScatTreeNodeImpl>())} {}
+ScatTreeNode::ScatTreeNode() : impl{std::make_unique<ScatTreeNodeImpl>()} {}
 ScatTreeNode::ScatTreeNode(mlir::Value value)
-    : impl{std::move(std::make_unique<ScatTreeNodeImpl>(value))} {}
+    : impl{std::make_unique<ScatTreeNodeImpl>(value)} {}
 ScatTreeNode::~ScatTreeNode() = default;
 ScatTreeNode::ScatTreeNode(ScatTreeNode &&) = default;
 ScatTreeNode &ScatTreeNode::operator=(ScatTreeNode &&) = default;
