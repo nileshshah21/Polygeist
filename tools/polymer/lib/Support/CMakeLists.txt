@@ -36,6 +36,7 @@ elseif(POLYGEIST_POLYMER_ENABLE_ISL)
 
     DEPENDS
     mlir-headers
+    bullseye_build
 
     ADDITIONAL_HEADERS
     ${POLYMER_MAIN_INCLUDE_DIR}/polymer/Support
@@ -49,4 +50,4 @@ elseif(POLYGEIST_POLYMER_ENABLE_ISL)
   )
 endif()
 
-target_link_libraries(PolymerSupport PUBLIC ${GMP_LIBRARY})
+target_link_libraries(PolymerSupport PUBLIC ${GMP_LIBRARY} ${POLYFREQ_DEPENDENT_LIBS})

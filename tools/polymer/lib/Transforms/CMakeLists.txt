@@ -24,7 +24,8 @@ add_mlir_conversion_library(PolymerTransforms
 
   DEPENDS
   PolymerTransformsIncGen
-
+  bullseye_build
+  
   LINK_LIBS PUBLIC
   MLIRAffineDialect
   MLIRAnalysis
@@ -36,7 +37,7 @@ add_mlir_conversion_library(PolymerTransforms
   MLIRSupport
   MLIRAffineToStandard
   MLIRAffineTransforms
-
+  
   PolymerSupport
   "${POLYMER_AVAIL_TARGETS}"
 )
